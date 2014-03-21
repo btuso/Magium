@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nifty xmlns="http://nifty-gui.sourceforge.net/nifty-1.3.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://nifty-gui.sourceforge.net/nifty-1.3.xsd http://nifty-gui.sourceforge.net/nifty-1.3.xsd">
+    <registerEffect name="resize" class="gui.effects.Resize" />
+    <screen id="start" controller="gui.controllers.DefaultLoadingScreenController">
+        <layer id="layer" childLayout="vertical" childClipping="true">
+            <panel id="progresBar" width="1%" height="1%" backgroundColor="#0f0f">
+                <effect>
+                    <onCustom customKey="progressUpdate" name="resize" length="300"/>
+                </effect>
+            </panel>
+
+            <image id="backgroundImage" width="*" height="80%" />
+
+            <panel childLayout="center" backgroundColor="#763f">
+                <panel height="8%" valign="top" backgroundColor="#aaff"/>
+                <text id="loadingMessage" font="aurulent-sans-16.fnt" color="#ffff" text="Now Loading..."
+                      align="center" valign="center" />
+            </panel>
+        </layer>
+    </screen>
+</nifty>
