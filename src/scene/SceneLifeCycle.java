@@ -10,6 +10,8 @@ interface SceneLifeCycle {
 
     void onResumeScene();
 
+    void onSceneUpdate(float tpf);
+
     void onPauseScene();
 
     void onDestroyScene();

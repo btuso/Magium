@@ -2,6 +2,7 @@ package mygame;
 
 import appstate.AppStateListener;
 import base.BaseApplication;
+import com.jme3.bullet.BulletAppState;
 import scene.SceneFactory;
 import scene.SceneManager;
 
@@ -10,12 +11,17 @@ import scene.SceneManager;
  */
 public class Main extends BaseApplication {
 
-    protected SceneManager sceneManager;
+    private BulletAppState bulletAppState;
+    private SceneManager sceneManager;
 
     @Override
     public void simpleInitApp() {
         super.simpleInitApp();
+        bulletAppState = new BulletAppState();
         releaseMouse();
+
+        stateManager.attach(bulletAppState);
+
         sceneManager = new SceneManager();
         sceneManager.setAppStateListener(new AppStateListener() {
 

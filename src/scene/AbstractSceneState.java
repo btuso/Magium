@@ -5,6 +5,8 @@ import base.BaseApplication;
 import com.jme3.app.Application;
 import com.jme3.app.state.AbstractAppState;
 import com.jme3.app.state.AppStateManager;
+import com.jme3.asset.AssetManager;
+import com.jme3.input.InputManager;
 import gui.controllers.DefaultLoadingScreenController;
 
 /**
@@ -15,6 +17,8 @@ public abstract class AbstractSceneState extends AbstractAppState implements Sce
 
     protected BaseApplication app;
     protected AppStateManager stateManager;
+    protected AssetManager assetManager;
+    protected InputManager inputManager;
     protected boolean paused = true;
     private boolean disposable = true;
     private boolean wasCreated = false;
@@ -25,6 +29,8 @@ public abstract class AbstractSceneState extends AbstractAppState implements Sce
         super.initialize(stateManager, app);
         this.app = (BaseApplication) app;
         this.stateManager = stateManager;
+        this.assetManager = app.getAssetManager();
+        this.inputManager = app.getInputManager();
 
         if (!wasCreated) {
             onCreateScene();
@@ -54,7 +60,11 @@ public abstract class AbstractSceneState extends AbstractAppState implements Sce
     }
 
     @Override
-    public abstract void update(float tpf);
+    public void update(float tpf) {
+        if (!paused) {
+            onSceneUpdate(tpf);
+        }
+    }
 
     @Override
     public void cleanup() {

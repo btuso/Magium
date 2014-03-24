@@ -1,4 +1,6 @@
-package scene;
+package scene.gamescenes;
+
+import scene.AbstractSceneState;
 
 /**
  *
@@ -6,11 +8,10 @@ package scene;
  */
 public class WelcomeScene extends AbstractSceneState {
 
-    @Override
-    public void update(float tpf) {
+    public void onCreateScene() {
     }
 
-    public void onCreateScene() {
+    public void onSceneUpdate(float tpf) {
     }
 
     public void onDestroyScene() {

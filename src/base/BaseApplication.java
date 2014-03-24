@@ -11,7 +11,7 @@ import mygame.Main;
  */
 public class BaseApplication extends SimpleApplication {
 
-    ScheduledThreadPoolExecutor executor;
+    private ScheduledThreadPoolExecutor executor;
 
     public static void main(String[] args) {
         Main app = new Main();
