@@ -8,7 +8,7 @@ import com.jme3.bullet.control.BetterCharacterControl;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.ViewPort;
-import com.jme3.scene.Spatial;
+import com.jme3.scene.Node;
 import com.jme3.scene.control.AbstractControl;
 import utils.MathUtils;
 
@@ -35,16 +35,31 @@ public class BasicMovementAnimationControl extends AbstractControl {
     private AnimControl animControl;
     private AnimChannel movementChannel;
 
-    public BasicMovementAnimationControl(Spatial character) {
+    public BasicMovementAnimationControl(Node character) {
         walkingSpeed = character.getUserData("walkingSpeed");//refa to constant
-        characterControl = character.getControl(BetterCharacterControl.class);
+        findCharacterControl(character);
         animControl = character.getControl(AnimControl.class);
         movementChannel = animControl.createChannel();
         animControl.addListener(isAnimatingListener);
     }
 
+    private void findCharacterControl(Node character) {
+        characterControl = getCharacterControlForNode(character);
+        if (characterControl == null) {
+            characterControl = getCharacterControlForNode(character.getParent());//refactor into abstract
+        }
+    }
+
+    private BetterCharacterControl getCharacterControlForNode(Node character) {
+        return character.getControl(BetterCharacterControl.class);
+    }
+
     @Override
     protected void controlUpdate(float tpf) {
+        if (!enabled) {
+            return;
+        }
+
         Vector3f walkingDirectionSpeed = characterControl.getWalkDirection();
 
         if (isAnimating) {
@@ -110,7 +125,7 @@ public class BasicMovementAnimationControl extends AbstractControl {
 
     private boolean isRunning(Vector3f speed) {
         float topSpeed = MathUtils.getBiggestModule(speed.x, speed.z);
-        return topSpeed > (walkingSpeed * 1.3);//refactor filter into user data for running
+        return topSpeed > (walkingSpeed * 1.4);//refactor filter into user data for running
     }
 
     public void startJumpAnimation() {

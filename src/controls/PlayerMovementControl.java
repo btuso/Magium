@@ -3,14 +3,19 @@ package controls;
 import com.jme3.bullet.control.BetterCharacterControl;
 import com.jme3.input.InputManager;
 import com.jme3.input.KeyInput;
+import com.jme3.input.MouseInput;
 import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.InputListener;
 import com.jme3.input.controls.KeyTrigger;
+import com.jme3.input.controls.MouseAxisTrigger;
+import com.jme3.input.controls.Trigger;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.ViewPort;
+import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.control.AbstractControl;
 
@@ -20,58 +25,74 @@ import com.jme3.scene.control.AbstractControl;
  */
 public class PlayerMovementControl extends AbstractControl {
 
-    public static final float WALK_SPEED = 8;
-    private static final float RUN_SPEED = 16;
+    public static final float WALK_SPEED = 10;
+    private static final float RUN_SPEED = 18;
+    private static final float rotationSpeed = 3f;
 
-    private enum ActionMappings {// move this to its own class?
+    private enum ActionMappings {// move this to its own class, along with input register
 
-        WALK_FORWARDS("Walk Forward", KeyInput.KEY_W),
-        WALK_BACKWARDS("Walk Backwards", KeyInput.KEY_S),
-        ROTATE_LEFT("Rotate Left", KeyInput.KEY_A),
-        ROTATE_RIGHT("Rotate Right", KeyInput.KEY_D),
-        STRAFE_LEFT("Strafe Left", KeyInput.KEY_Q),
-        STRAFE_RIGHT("Strafe Right", KeyInput.KEY_E),
-        RUN("Run", KeyInput.KEY_LSHIFT),
-        JUMP("Jump", KeyInput.KEY_SPACE),
-        DUCK("Duck", KeyInput.KEY_LCONTROL);
+        WALK_FORWARDS("Walk Forward", new KeyTrigger(KeyInput.KEY_W)),
+        WALK_BACKWARDS("Walk Backwards", new KeyTrigger(KeyInput.KEY_S)),
+        STRAFE_LEFT("Strafe Left", new KeyTrigger(KeyInput.KEY_A)),
+        STRAFE_RIGHT("Strafe Right", new KeyTrigger(KeyInput.KEY_D)),
+        ROTATE_LEFT("Rotate Left", new KeyTrigger(KeyInput.KEY_Q)),
+        ROTATE_RIGHT("Rotate Right", new KeyTrigger(KeyInput.KEY_E)),
+        MOUSE_ROTATE_LEFT("Rotate Left", new MouseAxisTrigger(MouseInput.AXIS_X, true)),
+        MOUSE_ROTATE_RIGHT("Rotate Right", new MouseAxisTrigger(MouseInput.AXIS_X, false)),
+        RUN("Run", new KeyTrigger(KeyInput.KEY_LSHIFT)),
+        JUMP("Jump", new KeyTrigger(KeyInput.KEY_SPACE)),
+        DUCK("Duck", new KeyTrigger(KeyInput.KEY_LCONTROL));
         private String mappingName;
-        private int keyInput;
+        private Trigger trigger;
 
-        private ActionMappings(String mappingName, int keyInput) {
+        private ActionMappings(String mappingName, Trigger trigger) {
             this.mappingName = mappingName;
-            this.keyInput = keyInput;
+            this.trigger = trigger;
         }
     }
     private InputManager inputManager;
     private Spatial character;
     private BetterCharacterControl characterControl;
-    private boolean controlStrated = false;
+    private BasicMovementAnimationControl animationControl;
     private boolean forward = false, backward = false;
     private boolean leftStrafe = false, rightStrafe = false;
-    private boolean leftRotate = false, rightRotate = false;
     private boolean isRunning = false;
+    private float rotationValue;
     private Vector3f walkDirection = new Vector3f(0, 0, 0);
     private Vector3f viewDirection = new Vector3f(0, 0, 1);
 
-    public PlayerMovementControl(InputManager inputManager, Spatial character) {
+    public PlayerMovementControl(InputManager inputManager, Node character) {
         this.inputManager = inputManager;
         this.character = character;
-        this.characterControl = character.getControl(BetterCharacterControl.class);
-        setUpKeys();
+        findCharacterControl(character);
+        animationControl = character.getControl(BasicMovementAnimationControl.class);
+        setUpMovementMappings();
     }
 
-    private void setUpKeys() {
+    private void findCharacterControl(Node character) {
+        characterControl = getCharacterControlForNode(character);
+        if (characterControl == null) {
+            characterControl = getCharacterControlForNode(character.getParent());//refactor into abstract
+        }
+    }
+
+    private BetterCharacterControl getCharacterControlForNode(Node character) {
+        return character.getControl(BetterCharacterControl.class);
+    }
+
+    private void setUpMovementMappings() {
         for (ActionMappings mapping : ActionMappings.values()) {
             addKeyMapping(mapping);
         }
-        addListenerMappings(basicMovementListener, ActionMappings.STRAFE_LEFT, ActionMappings.STRAFE_RIGHT);
-        addListenerMappings(basicMovementListener, ActionMappings.ROTATE_LEFT, ActionMappings.ROTATE_RIGHT);
         addListenerMappings(basicMovementListener, ActionMappings.WALK_FORWARDS, ActionMappings.WALK_BACKWARDS);
+        addListenerMappings(basicMovementListener, ActionMappings.STRAFE_LEFT, ActionMappings.STRAFE_RIGHT);
         addListenerMappings(basicMovementListener, ActionMappings.JUMP, ActionMappings.RUN, ActionMappings.DUCK);
+        addListenerMappings(basicMovementListener, ActionMappings.ROTATE_LEFT, ActionMappings.ROTATE_RIGHT);
+        addListenerMappings(mouseActionListener, ActionMappings.MOUSE_ROTATE_LEFT, ActionMappings.MOUSE_ROTATE_RIGHT);
     }
 
     private void addKeyMapping(ActionMappings keyMapping) {
-        inputManager.addMapping(keyMapping.mappingName, new KeyTrigger(keyMapping.keyInput));
+        inputManager.addMapping(keyMapping.mappingName, keyMapping.trigger);
     }
 
     private void addListenerMappings(InputListener listener, ActionMappings... keyMappings) {
@@ -85,7 +106,7 @@ public class PlayerMovementControl extends AbstractControl {
 
         public void onAction(String name, boolean isPressed, float tpf) {
             ActionMappings mapping = getActionMappingForMappingName(name);
-            if (mapping == null || !controlStrated) {//maybe introduce a "NOT_DEFINED" mapping to avoid nulls
+            if (mapping == null || !isEnabled()) {//maybe introduce a "NOT_DEFINED" mapping to avoid nulls
                 return;
             }
             switch (mapping) {
@@ -95,17 +116,17 @@ public class PlayerMovementControl extends AbstractControl {
                 case WALK_BACKWARDS:
                     backward = isPressed;
                     break;
-                case ROTATE_LEFT:
-                    leftRotate = isPressed;
-                    break;
-                case ROTATE_RIGHT:
-                    rightRotate = isPressed;
-                    break;
                 case STRAFE_LEFT:
                     leftStrafe = isPressed;
                     break;
                 case STRAFE_RIGHT:
                     rightStrafe = isPressed;
+                    break;
+                case ROTATE_LEFT:
+                    rotationValue = tpf;
+                    break;
+                case ROTATE_RIGHT:
+                    rotationValue = -tpf;
                     break;
                 case RUN:
                     isRunning = isPressed;
@@ -114,16 +135,37 @@ public class PlayerMovementControl extends AbstractControl {
                     if (isPressed == true && characterControl.isOnGround()) {
                         characterControl.setDucked(false);
                         characterControl.jump();
-                        character.getControl(BasicMovementAnimationControl.class).startJumpAnimation();
+                        if (animationControl != null) {
+                            animationControl.startJumpAnimation();
+                        }
                     }
                     break;
                 case DUCK:
                     isRunning = false;
                     characterControl.setDucked(isPressed);
                     if (isPressed == true) {
-                        character.getControl(BasicMovementAnimationControl.class).startDuckAnimation();
+                        if (animationControl != null) {
+                            animationControl.startDuckAnimation();
+                        }
                     }
                     break;
+            }
+        }
+
+    };
+    AnalogListener mouseActionListener = new AnalogListener() {
+
+        public void onAnalog(String name, float value, float tpf) {
+            ActionMappings mapping = getActionMappingForMappingName(name);
+            if (mapping == null || !isEnabled()) {//maybe introduce a "NOT_DEFINED" mapping to avoid nulls
+                return;
+            }
+            switch (mapping) {
+                case MOUSE_ROTATE_LEFT:
+                    rotationValue = value;
+                    break;
+                case MOUSE_ROTATE_RIGHT:
+                    rotationValue = -value;
             }
         }
 
@@ -139,45 +181,56 @@ public class PlayerMovementControl extends AbstractControl {
         return foundMapping;
     }
 
-    public void removeKeyMappings() {//Break this method in to two parts, so that input can be temporally paused. (Write an unpause method too)
-        for (ActionMappings keyMapping : ActionMappings.values()) {
-            inputManager.deleteMapping(keyMapping.mappingName);
-        }
-        inputManager.removeListener(basicMovementListener);
-    }
-
     @Override
-    protected void controlUpdate(float tpf) {//refactor all of this
-        controlStrated = true;
-        Vector3f modelForwardDir = character.getWorldRotation().mult(Vector3f.UNIT_Z);
-        Vector3f modelLeftDir = character.getWorldRotation().mult(Vector3f.UNIT_X);
+    protected void controlUpdate(float tpf) {
+        if (!enabled) {
+            return;
+        }
+        Vector3f modelForwardDirection = character.getWorldRotation().mult(Vector3f.UNIT_Z);
+        Vector3f modelLeftDirection = character.getWorldRotation().mult(Vector3f.UNIT_X);
         walkDirection.set(0, 0, 0);
 
-        if (leftStrafe) {
-            walkDirection.addLocal(modelLeftDir.mult(WALK_SPEED));
-        } else if (rightStrafe) {
-            walkDirection.addLocal(modelLeftDir.negate().multLocal(WALK_SPEED));
-        }
+        applyStrafeToWalkDirection(modelLeftDirection);
+        applyForwardsOrBackwardsToWalkDirection(modelForwardDirection);
+        applyRotateToViewDirection();
 
+        characterControl.setWalkDirection(walkDirection);
+        characterControl.setViewDirection(viewDirection);
+    }
+
+    private void applyStrafeToWalkDirection(Vector3f leftDirection) {
+        if (leftStrafe) {
+            walkDirection.addLocal(leftDirection.mult(WALK_SPEED));
+        } else if (rightStrafe) {
+            walkDirection.addLocal(leftDirection.negate().multLocal(WALK_SPEED));
+        }
+    }
+
+    private void applyForwardsOrBackwardsToWalkDirection(Vector3f modelForwardDir) {
         if (forward) {
             float speed = isRunning ? RUN_SPEED : WALK_SPEED;
             walkDirection.addLocal(modelForwardDir.mult(speed));
         } else if (backward) {
             walkDirection.addLocal(modelForwardDir.negate().multLocal(WALK_SPEED));
         }
-        characterControl.setWalkDirection(walkDirection);
+    }
 
-        if (leftRotate) {
-            Quaternion rotateL = new Quaternion().fromAngleAxis(FastMath.PI * tpf, Vector3f.UNIT_Y);
-            rotateL.multLocal(viewDirection);
-        } else if (rightRotate) {
-            Quaternion rotateR = new Quaternion().fromAngleAxis(-FastMath.PI * tpf, Vector3f.UNIT_Y);
-            rotateR.multLocal(viewDirection);
+    private void applyRotateToViewDirection() {
+        if (rotationValue != 0) {
+            Quaternion rotate = new Quaternion().fromAngleAxis(FastMath.PI * rotationValue, Vector3f.UNIT_Y);
+            rotate.multLocal(viewDirection);
+            rotationValue = 0;
         }
-        characterControl.setViewDirection(viewDirection);
     }
 
     @Override
     protected void controlRender(RenderManager rm, ViewPort vp) {
+    }
+
+    public void removeKeyMappings() {//Break this method in to two parts, so that input can be temporally paused. (Write an unpause method too)
+        for (ActionMappings keyMapping : ActionMappings.values()) {
+            inputManager.deleteMapping(keyMapping.mappingName);
+        }
+        inputManager.removeListener(basicMovementListener);
     }
 }
